@@ -7,7 +7,7 @@
 <form method="POST" action="{{ url_for('borrow_book') }}">
     <div class="mb-3">
         <label for="book_id" class="form-label">选择图书</label>
-        <select class="form-select" id="book_id" name="book_id" required>
+        <select class="form-select select2" id="book_id" name="book_id" required>
             <option value="" disabled selected>请选择一本图书</option>
             {% for book in books %}
                 <option value="{{ book.book_id }}">{{ book.title }} (库存: {{ book.available_stock }})</option>
@@ -16,7 +16,7 @@
     </div>
     <div class="mb-3">
         <label for="reader_id" class="form-label">选择读者</label>
-        <select class="form-select" id="reader_id" name="reader_id" required>
+        <select class="form-select select2" id="reader_id" name="reader_id" required>
             <option value="" disabled selected>请选择一个读者</option>
             {% for reader in readers %}
                 <option value="{{ reader.reader_id }}">{{ reader.name }} (编号: {{ reader.reader_number }})</option>
@@ -30,4 +30,15 @@
     <button type="submit" class="btn btn-primary">借书</button>
     <a href="{{ url_for('list_active_loans') }}" class="btn btn-secondary">取消</a>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        $('.select2').select2({
+            placeholder: "请选择",
+            allowClear: true
+        });
+    });
+</script>
 {% endblock %}

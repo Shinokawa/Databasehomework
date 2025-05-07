@@ -80,18 +80,3 @@ FROM loans L
 JOIN books B ON L.book_id = B.book_id
 JOIN readers R ON L.reader_id = R.reader_id
 WHERE L.return_date IS NULL AND L.due_date < CURRENT_DATE;
-
--- (Optional) Insert some initial data
-/*
-INSERT INTO readers (name, reader_number, contact) VALUES
-('张三', 'R001', '13800138000'),
-('李四', 'R002', '13900139000');
-
-INSERT INTO books (title, author, isbn, publisher, publication_year, category, total_stock, available_stock) VALUES
-('Python编程从入门到实践', 'Eric Matthes', '9787115428028', '人民邮电出版社', 2016, '编程', 5, 5),
-('三体', '刘慈欣', '9787536692930', '重庆出版社', 2008, '科幻', 3, 3),
-('数据库系统概念', 'Abraham Silberschatz', '9787111671735', '机械工业出版社', 2020, '计算机', 2, 1);
-
--- Example loan (assuming book_id 3 and reader_id 1 exist)
--- INSERT INTO loans (book_id, reader_id, loan_date, due_date) VALUES (3, 1, '2025-04-01', '2025-05-01');
-*/

@@ -1,10 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}当前借阅记录{% endblock %}
+{% block title %}借阅历史{% endblock %}
 
 {% block content %}
-<h2>当前借阅记录</h2>
-<a href="{{ url_for('borrow_book') }}" class="btn btn-primary mb-3">借书</a> <!-- 添加借书按钮 -->
+<h2>借阅历史</h2>
 <table class="table table-striped">
     <thead>
         <tr>
@@ -13,7 +12,7 @@
             <th>读者</th>
             <th>借阅日期</th>
             <th>应归还日期</th>
-            <th>操作</th>
+            <th>归还日期</th>
         </tr>
     </thead>
     <tbody>
@@ -24,14 +23,10 @@
             <td>{{ loan.reader_name }}</td>
             <td>{{ loan.loan_date }}</td>
             <td>{{ loan.due_date }}</td>
-            <td>
-                <form action="{{ url_for('return_book', loan_id=loan.loan_id) }}" method="POST" style="display:inline;" onsubmit="return confirm('确定要归还这本书吗？');">
-                    <button type="submit" class="btn btn-sm btn-success">归还</button>
-                </form>
-            </td>
+            <td>{{ loan.return_date or '未归还' }}</td>
         </tr>
     {% else %}
-        <tr><td colspan="6">没有未归还的借阅记录。</td></tr>
+        <tr><td colspan="6">没有借阅记录。</td></tr>
     {% endfor %}
     </tbody>
 </table>

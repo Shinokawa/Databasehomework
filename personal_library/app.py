@@ -2,6 +2,10 @@ import os
 import psycopg2
 from flask import Flask, render_template, request, redirect, url_for, flash, g, current_app
 from . import db # 从同级目录导入 db.py
+from dotenv import load_dotenv
+
+# 手动加载 .env 文件
+load_dotenv()
 
 # 创建 Flask 应用实例
 app = Flask(__name__)
@@ -224,6 +228,30 @@ def delete_book(book_id):
             db.get_db().rollback()
             flash(f'删除图书时发生未知错误: {e}', 'danger')
     return redirect(url_for('list_books'))
+
+@app.route('/books/<int:book_id>', methods=['GET'])
+def get_book(book_id):
+    """返回指定图书的详细信息（JSON 格式）。"""
+    try:
+        book = db.query_db("SELECT * FROM books WHERE book_id = %s", [book_id], one=True)
+        if not book:
+            return {"error": "Book not found"}, 404
+        # 将查询结果转换为 JSON 对象
+        book_json = {
+            "book_id": book["book_id"],
+            "title": book["title"],
+            "author": book["author"],
+            "isbn": book["isbn"],
+            "publisher": book["publisher"],
+            "publication_year": book["publication_year"],
+            "category": book["category"],
+            "total_stock": book["total_stock"],
+            "available_stock": book["available_stock"]
+        }
+        return book_json, 200
+    except psycopg2.Error as e:
+        current_app.logger.error(f"查询图书详情失败: {e}")
+        return {"error": "Database error"}, 500
 
 # --- 读者管理路由 (骨架) ---
 @app.route('/readers')
