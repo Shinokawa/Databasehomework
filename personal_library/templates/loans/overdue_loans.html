@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}逾期借阅记录{% endblock %}
+
+{% block content %}
+<h2>逾期借阅记录</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>借阅编号</th>
+            <th>图书</th>
+            <th>读者</th>
+            <th>联系方式</th>
+            <th>借阅日期</th>
+            <th>应归还日期</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for loan in loans %}
+        <tr>
+            <td>{{ loan.loan_id }}</td>
+            <td>{{ loan.book_title }}</td>
+            <td>{{ loan.reader_name }}</td>
+            <td>{{ loan.reader_contact }}</td>
+            <td>{{ loan.loan_date }}</td>
+            <td>{{ loan.due_date }}</td>
+        </tr>
+    {% else %}
+        <tr><td colspan="6">没有逾期的借阅记录。</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

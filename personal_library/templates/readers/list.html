@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}读者列表{% endblock %}
+
+{% block content %}
+<h2>读者列表</h2>
+<div class="row mb-3">
+    <div class="col-md-6">
+        <a href="{{ url_for('add_reader') }}" class="btn btn-success">添加新读者</a>
+    </div>
+</div>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>姓名</th>
+            <th>读者编号</th>
+            <th>联系方式</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for reader in readers %}
+        <tr>
+            <td>{{ reader.name }}</td>
+            <td>{{ reader.reader_number }}</td>
+            <td>{{ reader.contact or 'N/A' }}</td>
+            <td>
+                <a href="{{ url_for('edit_reader', reader_id=reader.reader_id) }}" class="btn btn-sm btn-warning">编辑</a>
+                <form action="{{ url_for('delete_reader', reader_id=reader.reader_id) }}" method="POST" style="display:inline;" onsubmit="return confirm('确定要删除该读者吗？');">
+                    <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                </form>
+            </td>
+        </tr>
+    {% else %}
+        <tr><td colspan="4">没有找到读者。</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

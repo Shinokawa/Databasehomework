@@ -1,0 +1,4 @@
+DATABASE_URL="postgresql://library_admin:sakikoiloveyou@localhost:5432/personal_library_db"
+FLASK_APP="personal_library.app" # 指向你的 Flask 应用实例
+FLASK_ENV="development"          # 开启调试模式等
+SECRET_KEY="a_very_secret_random_string_for_flask_sessions"

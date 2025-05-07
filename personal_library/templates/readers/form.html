@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action_text }}读者{% endblock %}
+
+{% block content %}
+<h2>{{ action_text }}读者</h2>
+<form method="POST" action="{{ form_action }}">
+    <div class="mb-3">
+        <label for="name" class="form-label">姓名</label>
+        <input type="text" class="form-control" id="name" name="name" value="{{ reader.name if reader else '' }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="reader_number" class="form-label">读者编号</label>
+        <input type="text" class="form-control" id="reader_number" name="reader_number" value="{{ reader.reader_number if reader else '' }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="contact" class="form-label">联系方式</label>
+        <input type="text" class="form-control" id="contact" name="contact" value="{{ reader.contact if reader else '' }}">
+    </div>
+    <button type="submit" class="btn btn-primary">{{ action_text }}</button>
+    <a href="{{ url_for('list_readers') }}" class="btn btn-secondary">取消</a>
+</form>
+{% endblock %}
