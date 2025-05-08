@@ -1,9 +1,7 @@
--- Drop tables if they exist (order matters due to foreign keys)
-DROP TABLE IF EXISTS loans;
-DROP TABLE IF EXISTS books;
-DROP TABLE IF EXISTS readers;
+DROP TABLE IF EXISTS loans CASCADE;
+DROP TABLE IF EXISTS books CASCADE;
+DROP TABLE IF EXISTS readers CASCADE;
 
--- Create tables
 CREATE TABLE readers (
     reader_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -33,14 +31,8 @@ CREATE TABLE loans (
     return_date DATE DEFAULT NULL
 );
 
--- Create indexes
--- Primary key indexes are created automatically
--- Unique constraint on books.isbn and readers.reader_number also creates an index automatically
 
 CREATE INDEX idx_books_title ON books(title);
--- For PostgreSQL, if you need efficient fuzzy search and have pg_trgm extension:
--- CREATE EXTENSION IF NOT EXISTS pg_trgm;
--- CREATE INDEX idx_books_title_trgm ON books USING gin (title gin_trgm_ops);
 CREATE INDEX idx_books_author ON books(author);
 CREATE INDEX idx_books_category ON books(category);
 
@@ -51,7 +43,6 @@ CREATE INDEX idx_loans_reader_id ON loans(reader_id);
 CREATE INDEX idx_loans_due_date ON loans(due_date);
 CREATE INDEX idx_loans_return_date ON loans(return_date);
 
--- (Optional) Create Views
 CREATE OR REPLACE VIEW view_activeloans AS
 SELECT
     L.loan_id,
@@ -80,3 +71,60 @@ FROM loans L
 JOIN books B ON L.book_id = B.book_id
 JOIN readers R ON L.reader_id = R.reader_id
 WHERE L.return_date IS NULL AND L.due_date < CURRENT_DATE;
+
+CREATE OR REPLACE FUNCTION fn_decrement_stock_on_borrow()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    IF NEW.return_date IS NULL THEN
+        UPDATE books
+        SET available_stock = available_stock - 1
+        WHERE book_id = NEW.book_id;
+
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_decrement_stock_on_borrow
+AFTER INSERT ON loans
+FOR EACH ROW
+EXECUTE FUNCTION fn_decrement_stock_on_borrow();
+
+CREATE OR REPLACE FUNCTION fn_update_stock_on_loan_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.return_date IS NULL AND NEW.return_date IS NOT NULL THEN
+        UPDATE books
+        SET available_stock = available_stock + 1
+        WHERE book_id = NEW.book_id; 
+    ELSIF OLD.return_date IS NOT NULL AND NEW.return_date IS NULL THEN
+        UPDATE books
+        SET available_stock = available_stock - 1
+        WHERE book_id = NEW.book_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_stock_on_loan_change
+AFTER UPDATE OF return_date ON loans 
+FOR EACH ROW
+EXECUTE FUNCTION fn_update_stock_on_loan_change();
+
+CREATE OR REPLACE FUNCTION fn_increment_stock_on_loan_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.return_date IS NULL THEN
+        UPDATE books
+        SET available_stock = available_stock + 1
+        WHERE book_id = OLD.book_id;
+    END IF;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_increment_stock_on_loan_delete
+AFTER DELETE ON loans
+FOR EACH ROW
+EXECUTE FUNCTION fn_increment_stock_on_loan_delete();

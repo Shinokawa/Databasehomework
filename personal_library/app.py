@@ -1,35 +1,27 @@
 import os
 import psycopg2
 from flask import Flask, render_template, request, redirect, url_for, flash, g, current_app
-from . import db # 从同级目录导入 db.py
+from . import db 
 from dotenv import load_dotenv
 
-# 手动加载 .env 文件
 load_dotenv()
 
-# 创建 Flask 应用实例
 app = Flask(__name__)
 
-# 从环境变量加载配置，如果 .env 文件存在且 python-dotenv 已安装，它会自动加载
-# 否则，需要确保这些环境变量在运行应用前已设置
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_fallback_secret_key_if_not_set')
 
-# 初始化数据库模块
 db.init_app(app)
 
-# --- CLI 命令 ---
 @app.cli.command('init-db')
 def init_db_command():
     """清除现有数据并创建新表。"""
     try:
-        # 确保在应用上下文中执行
         with app.app_context():
             db.init_db_tables()
-        click.echo('数据库已初始化。') # type: ignore
+        click.echo('数据库已初始化。')
     except Exception as e:
-        click.echo(f'数据库初始化失败: {e}') # type: ignore
+        click.echo(f'数据库初始化失败: {e}')
 
-# --- 辅助函数 ---
 def get_int_or_none(value_str):
     """尝试将字符串转换为整数，如果字符串为空或无效则返回 None。"""
     if value_str and value_str.strip():
@@ -39,19 +31,17 @@ def get_int_or_none(value_str):
             return None
     return None
 
-# --- 首页 ---
 @app.route('/')
 def index():
     """应用首页。"""
     return render_template('index.html')
 
-# --- 图书管理路由 ---
 @app.route('/books')
 def list_books():
     """显示所有图书列表，支持搜索。"""
     search_term = request.args.get('search', '').strip()
     page = request.args.get('page', 1, type=int)
-    per_page = 10 # 每页显示数量
+    per_page = 10
 
     query = "SELECT * FROM books"
     count_query = "SELECT COUNT(*) FROM books"
@@ -101,7 +91,7 @@ def add_book():
 
         publication_year = get_int_or_none(publication_year_str)
         total_stock = get_int_or_none(total_stock_str) or 0
-        available_stock = total_stock # 新书入库时，可借阅数量等于总库存
+        available_stock = total_stock
 
         if not title or not author or not isbn:
             flash('书名、作者和 ISBN 为必填项。', 'danger')
@@ -147,12 +137,12 @@ def edit_book(book_id):
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
         author = request.form.get('author', '').strip()
-        isbn = request.form.get('isbn', '').strip() # 通常 ISBN 不建议修改，但此处允许
+        isbn = request.form.get('isbn', '').strip()
         publisher = request.form.get('publisher', '').strip() or None
         publication_year_str = request.form.get('publication_year', '').strip()
         category = request.form.get('category', '').strip() or None
         total_stock_str = request.form.get('total_stock', '0').strip()
-        available_stock_str = request.form.get('available_stock', '0').strip() # 编辑时允许修改可用库存
+        available_stock_str = request.form.get('available_stock', '0').strip()
 
         publication_year = get_int_or_none(publication_year_str)
         total_stock = get_int_or_none(total_stock_str)
@@ -193,9 +183,8 @@ def edit_book(book_id):
                 db.get_db().rollback()
                 current_app.logger.error(f"更新图书时发生未知错误: {e}")
                 flash(f'更新图书时发生未知错误: {e}', 'danger')
-        # 如果更新失败，重新填充表单当前值
         current_values = dict(request.form)
-        current_values['book_id'] = book_id # 确保 book_id 传递回模板
+        current_values['book_id'] = book_id
         return render_template('books/form.html', action_text='更新', book=current_values, form_action=url_for('edit_book', book_id=book_id))
 
     return render_template('books/form.html', action_text='更新', book=book, form_action=url_for('edit_book', book_id=book_id))
@@ -204,21 +193,17 @@ def edit_book(book_id):
 @app.route('/books/delete/<int:book_id>', methods=['POST'])
 def delete_book(book_id):
     """删除图书。"""
-    # 检查是否有未归还的借阅记录
     active_loans = db.query_db("SELECT 1 FROM loans WHERE book_id = %s AND return_date IS NULL LIMIT 1", [book_id], one=True)
     if active_loans:
         flash('无法删除该图书，尚有未归还的借阅记录。请先处理这些借阅。', 'danger')
     else:
         try:
-            # 为安全起见，可以先删除相关的已归还借阅记录，或者在 loans 表上设置 ON DELETE CASCADE (但不推荐，因为 ON DELETE RESTRICT 更安全)
-            # 如果 loans 表中 book_id 外键设置为 ON DELETE CASCADE，则相关借阅记录会自动删除
-            # db.query_db('DELETE FROM loans WHERE book_id = %s', [book_id], commit=True) # 如果需要手动删除历史借阅
             deleted_rows = db.query_db('DELETE FROM books WHERE book_id = %s', [book_id], commit=True)
             if deleted_rows > 0:
                 flash('图书删除成功!', 'success')
             else:
                 flash('未找到要删除的图书或已被删除。', 'warning')
-        except psycopg2.IntegrityError as e: #理论上前面检查了active_loans, 不会触发这个，除非有其他约束
+        except psycopg2.IntegrityError as e:
             db.get_db().rollback()
             flash(f'删除图书失败: 数据库完整性约束冲突。 {e}', 'danger')
         except psycopg2.Error as e:
@@ -236,7 +221,6 @@ def get_book(book_id):
         book = db.query_db("SELECT * FROM books WHERE book_id = %s", [book_id], one=True)
         if not book:
             return {"error": "Book not found"}, 404
-        # 将查询结果转换为 JSON 对象
         book_json = {
             "book_id": book["book_id"],
             "title": book["title"],
@@ -253,11 +237,9 @@ def get_book(book_id):
         current_app.logger.error(f"查询图书详情失败: {e}")
         return {"error": "Database error"}, 500
 
-# --- 读者管理路由 (骨架) ---
 @app.route('/readers')
 def list_readers():
     """显示所有读者列表。"""
-    # 实际实现：查询 readers 表并传递给模板
     try:
         readers = db.query_db("SELECT * FROM readers ORDER BY name")
     except psycopg2.Error as e:
@@ -290,7 +272,6 @@ def add_reader():
             except psycopg2.Error as e:
                 db.get_db().rollback()
                 flash(f'添加读者时发生错误: {e}', 'danger')
-        # 如果失败，保留用户输入
         return render_template('readers/form.html', action_text='添加', reader=request.form, form_action=url_for('add_reader'))
     return render_template('readers/form.html', action_text='添加', reader=None, form_action=url_for('add_reader'))
 
@@ -325,7 +306,6 @@ def edit_reader(reader_id):
             except psycopg2.Error as e:
                 db.get_db().rollback()
                 flash(f'更新读者信息时发生错误: {e}', 'danger')
-        # 如果更新失败，重新填充表单当前值
         current_values = dict(request.form)
         current_values['reader_id'] = reader_id
         return render_template('readers/form.html', action_text='更新', reader=current_values, form_action=url_for('edit_reader', reader_id=reader_id))
@@ -340,7 +320,6 @@ def delete_reader(reader_id):
         flash('无法删除该读者，该读者尚有未归还的图书。', 'danger')
     else:
         try:
-            # db.query_db('DELETE FROM loans WHERE reader_id = %s', [reader_id], commit=True) # 如果需要删除历史借阅
             deleted_rows = db.query_db('DELETE FROM readers WHERE reader_id = %s', [reader_id], commit=True)
             if deleted_rows > 0:
                 flash('读者删除成功!', 'success')
@@ -352,7 +331,6 @@ def delete_reader(reader_id):
     return redirect(url_for('list_readers'))
 
 
-# --- 借阅管理路由 ---
 @app.route('/loans/borrow', methods=['GET', 'POST'])
 def borrow_book():
     """处理借书请求。"""
@@ -370,20 +348,15 @@ def borrow_book():
             conn = db.get_db()
             cur = conn.cursor()
             try:
-                # 开始事务
-                # 1. 检查图书是否存在且可借阅，并锁定该行以防并发问题
                 cur.execute("SELECT available_stock FROM books WHERE book_id = %s FOR UPDATE;", (book_id,))
                 book_stock_info = cur.fetchone()
 
                 if book_stock_info and book_stock_info[0] > 0:
-                    # 2. 减少图书可借阅数量
-                    cur.execute("UPDATE books SET available_stock = available_stock - 1 WHERE book_id = %s;", (book_id,))
-                    # 3. 插入新的借阅记录
                     cur.execute("""
                         INSERT INTO loans (book_id, reader_id, due_date, loan_date)
                         VALUES (%s, %s, %s, CURRENT_DATE);
                     """, (book_id, reader_id, due_date_str))
-                    conn.commit()  # 提交事务
+                    conn.commit()
                     flash('借书成功!', 'success')
                     return redirect(url_for('list_active_loans'))
                 elif book_stock_info and book_stock_info[0] <= 0:
@@ -394,8 +367,11 @@ def borrow_book():
                     flash('借书失败：未找到该图书或图书信息有误。', 'danger')
 
             except psycopg2.Error as e:
-                conn.rollback()  # 回滚事务
-                flash(f'借书操作失败: {e}', 'danger')
+                conn.rollback()
+                if "chk_available_stock" in str(e).lower():
+                    flash('借书失败：操作后库存将为负，请检查图书状态。', 'danger')
+                else:
+                    flash(f'借书操作失败: {e}', 'danger')
                 current_app.logger.error(f"借书失败: {e}")
             except Exception as e:
                 conn.rollback()
@@ -405,9 +381,7 @@ def borrow_book():
                 if cur:
                     cur.close()
 
-    # GET 请求或 POST 失败时，准备表单数据
     try:
-        # 只显示可借阅数量大于0的图书
         books_for_loan = db.query_db("SELECT book_id, title, author, available_stock FROM books WHERE available_stock > 0 ORDER BY title")
         readers_list = db.query_db("SELECT reader_id, name, reader_number FROM readers ORDER BY name")
     except psycopg2.Error as e:
@@ -424,8 +398,6 @@ def return_book(loan_id):
     conn = db.get_db()
     cur = conn.cursor()
     try:
-        # 开始事务
-        # 1. 检查借阅记录是否存在且未归还，并获取 book_id
         cur.execute("SELECT book_id FROM loans WHERE loan_id = %s AND return_date IS NULL FOR UPDATE;", (loan_id,))
         loan_info = cur.fetchone()
 
@@ -434,17 +406,16 @@ def return_book(loan_id):
             flash('无效的借阅记录或图书已归还。', 'warning')
             return redirect(url_for('list_active_loans'))
 
-        book_id = loan_info[0]
-        # 2. 更新借阅记录的归还日期
         cur.execute("UPDATE loans SET return_date = CURRENT_DATE WHERE loan_id = %s;", (loan_id,))
-        # 3. 增加图书的可借阅数量 (需要确保不会超过总库存，尽管逻辑上归还不会超)
-        cur.execute("UPDATE books SET available_stock = available_stock + 1 WHERE book_id = %s;", (book_id,))
-        # 检查约束: available_stock <= total_stock (数据库层面已有约束 chk_available_stock)
-        conn.commit()  # 提交事务
+        
+        conn.commit()
         flash('还书成功!', 'success')
     except psycopg2.Error as e:
-        conn.rollback()  # 回滚事务
-        flash(f'还书操作失败: {e}', 'danger')
+        conn.rollback()  
+        if "chk_available_stock" in str(e).lower():
+            flash('还书失败：操作后库存状态异常，请检查图书总库存。', 'danger')
+        else:
+            flash(f'还书操作失败: {e}', 'danger')
         current_app.logger.error(f"还书失败: {e}")
     except Exception as e:
         conn.rollback()
@@ -460,7 +431,6 @@ def return_book(loan_id):
 def list_active_loans():
     """显示当前所有未归还的借阅记录。"""
     try:
-        # 使用之前定义的视图 view_activeloans
         active_loans = db.query_db("SELECT * FROM view_activeloans ORDER BY due_date;")
     except psycopg2.Error as e:
         flash(f'查询当前借阅记录失败: {e}', 'danger')
@@ -472,14 +442,12 @@ def list_active_loans():
 def list_overdue_loans():
     """显示所有已逾期未归还的借阅记录。"""
     try:
-        # 使用之前定义的视图 view_overdueloans
         overdue_loans = db.query_db("SELECT * FROM view_overdueloans ORDER BY due_date;")
     except psycopg2.Error as e:
         flash(f'查询逾期记录失败: {e}', 'danger')
         overdue_loans = []
     return render_template('loans/overdue_loans.html', loans=overdue_loans)
 
-# --- 综合查询路由 (示例) ---
 @app.route('/search/reader_loans/<int:reader_id>')
 def reader_loan_history(reader_id):
     """查询某个读者的所有借阅记录 (包括已归还和未归还)。"""
@@ -501,7 +469,6 @@ def reader_loan_history(reader_id):
     except psycopg2.Error as e:
         flash(f'查询读者借阅历史失败: {e}', 'danger')
         loans = []
-        # 如果读者查询也失败了，确保 reader 对象存在或为 None
         if 'reader' not in locals():
              reader = None
 
@@ -543,22 +510,8 @@ def book_loan_history(book_id):
 
 
 if __name__ == '__main__':
-    # 确保在运行前设置了 FLASK_APP 和 FLASK_ENV 环境变量
-    # 例如: export FLASK_APP=personal_library.app
-    #        export FLASK_ENV=development
-    #        flask run
-    # 或者直接运行 python -m flask run --debug (如果 FLASK_APP 已设置)
-    #
-    # 如果直接运行 python app.py, debug=True 会启用调试模式
-    # 但推荐使用 flask run 命令
     app.run(debug=os.environ.get('FLASK_ENV') == 'development')
-
-# 为了让 CLI 命令能找到，通常在 __init__.py 中导入 app
-# 或者在 .flaskenv 文件中设置 FLASK_APP=personal_library.app
-#
-# 确保安装了 click 用于 CLI 命令: pip install click
 try:
     import click
 except ImportError:
-    # 如果没有click，CLI命令会失败，但应用仍可运行
     pass
