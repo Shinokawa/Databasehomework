@@ -19,6 +19,7 @@ CREATE TABLE books (
     category VARCHAR(50),
     total_stock INTEGER NOT NULL DEFAULT 0,
     available_stock INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT chk_total_stock CHECK (total_stock >= 0), 
     CONSTRAINT chk_available_stock CHECK (available_stock >= 0 AND available_stock <= total_stock)
 );
 
