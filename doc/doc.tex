@@ -9,11 +9,13 @@
 \usepackage{xcolor}   % For colors
 \usepackage{listings} % For code listings
 \usepackage{caption}  % For captions
+\usepackage{titling} % Add this line for title customization
 
 % Page geometry
 \geometry{a4paper, margin=1in}
 
 % Listings style for SQL
+% In your LaTeX preamble (e.g., where other \lstdefinestyle commands are)
 \lstdefinestyle{sqlstyle}{
     language=SQL,
     basicstyle=\ttfamily\footnotesize,
@@ -28,9 +30,32 @@
     tabsize=2,
     captionpos=b, % caption below
     extendedchars=true,
+    showstringspaces=false, % <--- CRITICAL FIX: Add this line
     literate={--}{{-{}-}}2 % to display double hyphen correctly
 }
-\lstset{style=sqlstyle}
+
+% Add this to your LaTeX preamble, for example, after the \lstdefinestyle{sqlstyle}
+\lstdefinestyle{pythonstyle}{
+    language=Python,
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{blue}\bfseries,      % Keywords
+    stringstyle=\color{red!60!black},        % Strings
+    commentstyle=\color{green!60!black},     % Comments
+    identifierstyle=\color{black},           % Other identifiers
+    emph={self,True,False,None,def,class,import,from,return,if,elif,else,for,while,try,except,finally,with,as,in,is,not,and,or,pass,global,nonlocal,yield,assert,break,continue,del,lambda}, % Python keywords
+    emphstyle=\color{blue}\bfseries,          % Style for keywords in emph
+    emph={[2]request,render_template,redirect,url_for,flash,g,current_app,Flask,os,psycopg2,app,db,click,load_dotenv}, % Common Flask/library names
+    emphstyle={[2]\color{teal}\bfseries},       % Style for emph[2]
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=4,
+    captionpos=b,
+    extendedchars=true, % Important for UTF-8 characters in comments/strings
+    showstringspaces=false, % Don't show spaces in strings with special characters
+    literate={->}{{$\rightarrow$}}1 {!=}{{$\neq$}}1 {<=}{{$\leq$}}1 {>=}{{$\geq$}}1, % Ligatures
+}
 
 % Hyperref setup
 \hypersetup{
@@ -42,14 +67,15 @@
     pdfpagemode=FullScreen,
 }
 
-\title{个人图书管理系统：系统需求与数据库设计}
-\author{系统设计小组}
-\date{\today}
+% Add these lines to left-align the title
+\pretitle{\begin{flushleft}\LARGE\bfseries}
+\posttitle{\end{flushleft}}
+
+\title{实验二：小型图书管理系统}
+\date{}
 
 \begin{document}
 \maketitle
-\tableofcontents
-\newpage
 
 \section{系统功能需求}
 本个人图书管理系统旨在提供一个便捷的平台，用于管理个人藏书、读者信息以及图书的借阅和归还过程。系统应具备以下主要功能：
@@ -442,5 +468,156 @@
 整个 \texttt{schema.sql} 文件的执行被视为一个事务。如果任何语句失败，则会回滚，防止数据库处于部分初始化的状态。
 \paragraph{视图与触发器:}
 此过程直接负责在数据库中创建和定义所有的表、视图和触发器。
+
+% ... (previous content of your LaTeX document) ...
+
+\newpage
+\appendix
+\counterwithin{figure}{section} % Optional: Resets figure numbering for appendix
+\counterwithin{table}{section}  % Optional: Resets table numbering for appendix
+\counterwithin{lstlisting}{section} % Optional: Resets listing numbering for appendix
+
+\section{代码附录}
+\label{sec:appendix_code}
+
+\subsection{personal\_library/schema.sql}
+\label{subsec:schema_sql_code}
+\begin{lstlisting}[language=SQL, style=sqlstyle, caption={personal\_library/schema.sql SQL脚本}, label={lst:schema_sql}]
+    DROP TABLE IF EXISTS loans CASCADE;
+    DROP TABLE IF EXISTS books CASCADE;
+    DROP TABLE IF EXISTS readers CASCADE;
+    
+    CREATE TABLE readers (
+        reader_id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        reader_number VARCHAR(50) UNIQUE NOT NULL,
+        contact VARCHAR(100)
+    );
+    
+    CREATE TABLE books (
+        book_id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        author VARCHAR(100) NOT NULL,
+        isbn VARCHAR(20) UNIQUE NOT NULL,
+        publisher VARCHAR(100),
+        publication_year INTEGER,
+        category VARCHAR(50),
+        total_stock INTEGER NOT NULL DEFAULT 0,
+        available_stock INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT chk_total_stock CHECK (total_stock >= 0), 
+        CONSTRAINT chk_available_stock CHECK (available_stock >= 0 AND available_stock <= total_stock)
+    );
+    
+    CREATE TABLE loans (
+        loan_id SERIAL PRIMARY KEY,
+        book_id INTEGER NOT NULL REFERENCES books(book_id) ON DELETE RESTRICT,
+        reader_id INTEGER NOT NULL REFERENCES readers(reader_id) ON DELETE RESTRICT,
+        loan_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        due_date DATE NOT NULL,
+        return_date DATE DEFAULT NULL
+    );
+    
+    
+    CREATE INDEX idx_books_title ON books(title);
+    CREATE INDEX idx_books_author ON books(author);
+    CREATE INDEX idx_books_category ON books(category);
+    
+    CREATE INDEX idx_readers_name ON readers(name);
+    
+    CREATE INDEX idx_loans_book_id ON loans(book_id);
+    CREATE INDEX idx_loans_reader_id ON loans(reader_id);
+    CREATE INDEX idx_loans_due_date ON loans(due_date);
+    CREATE INDEX idx_loans_return_date ON loans(return_date);
+    
+    CREATE OR REPLACE VIEW view_activeloans AS
+    SELECT
+        L.loan_id,
+        R.name AS reader_name,
+        R.reader_number,
+        B.title AS book_title,
+        B.isbn,
+        L.loan_date,
+        L.due_date
+    FROM loans L
+    JOIN books B ON L.book_id = B.book_id
+    JOIN readers R ON L.reader_id = R.reader_id
+    WHERE L.return_date IS NULL;
+    
+    CREATE OR REPLACE VIEW view_overdueloans AS
+    SELECT
+        L.loan_id,
+        R.name AS reader_name,
+        R.reader_number,
+        R.contact AS reader_contact,
+        B.title AS book_title,
+        B.isbn,
+        L.loan_date,
+        L.due_date
+    FROM loans L
+    JOIN books B ON L.book_id = B.book_id
+    JOIN readers R ON L.reader_id = R.reader_id
+    WHERE L.return_date IS NULL AND L.due_date < CURRENT_DATE;
+    
+    CREATE OR REPLACE FUNCTION fn_decrement_stock_on_borrow()
+    RETURNS TRIGGER AS $$
+    BEGIN
+    
+        IF NEW.return_date IS NULL THEN
+            UPDATE books
+            SET available_stock = available_stock - 1
+            WHERE book_id = NEW.book_id;
+    
+        END IF;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    CREATE TRIGGER trg_decrement_stock_on_borrow
+    AFTER INSERT ON loans
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_decrement_stock_on_borrow();
+    
+    CREATE OR REPLACE FUNCTION fn_update_stock_on_loan_change()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        IF OLD.return_date IS NULL AND NEW.return_date IS NOT NULL THEN
+            UPDATE books
+            SET available_stock = available_stock + 1
+            WHERE book_id = NEW.book_id; 
+        ELSIF OLD.return_date IS NOT NULL AND NEW.return_date IS NULL THEN
+            UPDATE books
+            SET available_stock = available_stock - 1
+            WHERE book_id = NEW.book_id;
+        END IF;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    CREATE TRIGGER trg_update_stock_on_loan_change
+    AFTER UPDATE OF return_date ON loans 
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_update_stock_on_loan_change();
+    
+    CREATE OR REPLACE FUNCTION fn_increment_stock_on_loan_delete()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        IF OLD.return_date IS NULL THEN
+            UPDATE books
+            SET available_stock = available_stock + 1
+            WHERE book_id = OLD.book_id;
+        END IF;
+        RETURN OLD;
+    END;
+    $$ LANGUAGE plpgsql;
+    
+    CREATE TRIGGER trg_increment_stock_on_loan_delete
+    AFTER DELETE ON loans
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_increment_stock_on_loan_delete();
+    
+\end{lstlisting}
+
+
+% ... (This should be followed by \end{document}) ...
 
 \end{document}
