@@ -64,8 +64,8 @@
 
 1.  **克隆仓库**
     ```bash
-    git clone <repository-url>
-    cd <repository-name>
+    git clone https://github.com/Shinokawa/Databasehomework.git
+    cd Databasehomework
     ```
 
 2.  **创建并激活虚拟环境**
